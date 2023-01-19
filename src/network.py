@@ -1,7 +1,58 @@
 import torch 
 from torch import nn 
-
+from src.config import nn_config
 ###### A package for all models used in GANomlay 
+
+
+def net_ge(device):
+    height,width,channels = nn_config.HEIGHT,nn_config.WIDTH,nn_config.CHANNEl
+    knsize, feature_dim,zdim = nn_config.knsize,nn_config.feature_dims,nn_config.zdim
+    net_ge = g_e(height,width,channels,
+                    device,
+                    knsize,zdim,feature_dim)
+    net_ge.apply(Init_Conv)
+    net_ge.to(net_ge.device)
+    return net_ge
+
+def net_gd(device):
+    height,width,channels = nn_config.HEIGHT,nn_config.WIDTH,nn_config.CHANNEl
+    knsize, feature_dim,zdim = nn_config.knsize,nn_config.feature_dims,nn_config.zdim
+    net_gd = g_d(height,width,channels,
+                device,
+                knsize,zdim,feature_dim)
+    net_gd.apply(Init_Conv)
+    net_gd.to(net_gd.device)
+    return net_gd
+
+def net_dis(device):
+    height,width,channels = nn_config.HEIGHT,nn_config.WIDTH,nn_config.CHANNEl
+    knsize, feature_dim,zdim = nn_config.knsize,nn_config.feature_dims,nn_config.zdim
+    net_dis = dis(height,width,channels,
+                    device,
+                    knsize,zdim,feature_dim)
+    net_dis.apply(Init_Conv)
+    net_dis.to(net_dis.device)
+    return net_dis
+
+
+
+def Init_Conv(m):
+    """
+    A function for initializing conv and convtranspose layer 
+    The weight will be init by xavier_uniform and bias will be init by zeros
+    Example:
+        model = FCN()
+        model.apply(Init_Conv)
+    """
+    
+    print(f"Checking: {m}",flush=True)
+    if type(m) == nn.Conv2d or type(m) == nn.ConvTranspose2d:
+        # print(f"the layer is {m.__class__.__name__}")
+        nn.init.xavier_uniform_(m.weight,gain=nn.init.calculate_gain("leaky_relu"))
+        nn.init.zeros_(m.bias)
+        print("It has been initialized",flush=True)
+    
+
 
 class Flatten(nn.Module):
     def forward(self,input:torch.Tensor):
@@ -32,12 +83,19 @@ class g_e(nn.Module):
         g_conv = nn.Sequential()
             
         g_conv.add_module("conv1", nn.Conv2d(in_channels=channels, out_channels=feature_dims[0],
-                                                kernel_size=knsize[0],stride=2,padding_mode="replicate"))
-        
+                                                kernel_size=knsize[0],stride=2))
+        g_conv.add_module("BN{}".format(1),
+                                nn.BatchNorm2d(num_features=feature_dims[0],eps=1e-3,momentum=0.99) )
+        g_conv.add_module("LkELU{}".format(1),
+                                nn.LeakyReLU())
         for i, out_channel in enumerate(feature_dims[:-2]):
             g_conv.add_module("conv{}".format(i+2),
                                 nn.Conv2d(in_channels=out_channel,out_channels=feature_dims[i+1],
-                                            kernel_size=knsize[-1],stride=2,padding_mode="replicate"))
+                                            kernel_size=knsize[-1],stride=2))
+            g_conv.add_module("BN{}".format(i+2),
+                                nn.BatchNorm2d(num_features=feature_dims[i+1],eps=1e-3,momentum=0.99) )
+            g_conv.add_module("LkELU{}".format(i+2),
+                                nn.LeakyReLU())
             
         g_conv.add_module("conv{}".format(len(feature_dims)), nn.Conv2d(in_channels=feature_dims[-2], 
                                                                         out_channels=feature_dims[-1],
@@ -55,10 +113,10 @@ class g_e(nn.Module):
         g_mlp.add_module("flatten",Flatten())
         g_mlp.add_module("dense1",
                         nn.Linear(in_features=conv_flatten_dim, out_features= 128))
-        g_mlp.add_module("elu1", nn.ELU())
+        g_mlp.add_module("relu1", nn.ReLU())
         g_mlp.add_module("dense2",
                         nn.Linear(in_features=128, out_features= 32))
-        g_mlp.add_module("elu2", nn.ELU())
+        g_mlp.add_module("relu2", nn.ReLU())
         
        
         self.g_conv = g_conv
@@ -109,16 +167,19 @@ class g_d(nn.Module):
                             nn.ConvTranspose2d(in_channels=feature_dims[-1],out_channels=feature_dims[-2],
                                                 kernel_size=knsize[-1],stride=(2,2),padding=(1,1)
                                                 ,output_padding=(1,1),padding_mode="zeros"))
-        d_conv.add_module("relu{}".format(1),
-                                    nn.ReLU())      
+        d_conv.add_module("BN{}".format(1),
+                                nn.BatchNorm2d(num_features=feature_dims[-2],eps=1e-3,momentum=0.99))
+        d_conv.add_module("lkelu{}".format(1),
+                                    nn.LeakyReLU())      
 
         d_conv.add_module("TransConv{}".format(2),
                             nn.ConvTranspose2d(in_channels=feature_dims[-2],out_channels=feature_dims[-3],
                                                 kernel_size=knsize[-1],stride=(2,2)
                                                 ,padding=(1,1),output_padding=(1,1),padding_mode="zeros"))
-        
-        d_conv.add_module("relu{}".format(2),
-                                nn.ReLU())
+        d_conv.add_module("BN{}".format(2),
+                                nn.BatchNorm2d(num_features=feature_dims[-3],eps=1e-3,momentum=0.99))
+        d_conv.add_module("lkelu{}".format(2),
+                                nn.LeakyReLU())
 
         d_conv.add_module("Channels",
                             nn.ConvTranspose2d(in_channels=feature_dims[0],out_channels=3,
@@ -156,24 +217,25 @@ class dis(nn.Module):
         dis_conv = nn.Sequential()
         
         dis_conv.add_module("conv1", nn.Conv2d(in_channels=channels, out_channels=feature_dims[0],
-                                                kernel_size=knsize[0],stride=2,padding_mode="replicate"))
+                                                kernel_size=knsize[0],stride=2))
         
-        dis_conv.add_module("BN1",nn.BatchNorm2d(num_features=[feature_dims[0]]))
+        dis_conv.add_module("BN1",nn.BatchNorm2d(num_features=[feature_dims[0]],eps=1e-3,momentum=0.99))
         dis_conv.add_module("Leaky1",nn.LeakyReLU())
 
         for i, out_channel in enumerate(feature_dims[:-2]):
             dis_conv.add_module("conv{}".format(i+2),
                                 nn.Conv2d(in_channels=out_channel,out_channels=feature_dims[i+1],
-                                            kernel_size=knsize[-1],stride=2,padding_mode="replicate"))
-            dis_conv.add_module("BN{}".format(i+2),nn.BatchNorm2d(num_features=[feature_dims[i+1]]))
+                                            kernel_size=knsize[-1],stride=2))
+            dis_conv.add_module("BN{}".format(i+2),nn.BatchNorm2d(num_features=[feature_dims[i+1]],eps=1e-3,momentum=0.99))
             dis_conv.add_module("Leaky{}".format(i+2),nn.LeakyReLU())
+
         dis_conv.add_module("conv{}".format(len(feature_dims)), nn.Conv2d(in_channels=feature_dims[-2], 
                                                                         out_channels=feature_dims[-1],
-                                                                        kernel_size=knsize[-1],stride=2,padding=(knsize[-1]-1,knsize[-1]-1),padding_mode="replicate"))
+                                                                        kernel_size=knsize[-1],stride=2,padding=(knsize[-1]-1,knsize[-1]-1)))
         
         dis_conv.add_module("conv{}".format(len(feature_dims)+1), nn.Conv2d(in_channels=feature_dims[-1], 
                                                                         out_channels=1,
-                                                                        kernel_size=knsize[-1],stride=2,padding=(knsize[-1]-1,knsize[-1]-1),padding_mode="replicate"))
+                                                                        kernel_size=knsize[-1],stride=2,padding=(knsize[-1]-1,knsize[-1]-1)))
         
         dis_out = nn.Sequential()
         dis_out.add_module("GlobAvgPool",nn.AdaptiveAvgPool2d(output_size=(1)))
@@ -181,7 +243,10 @@ class dis(nn.Module):
         
         self.dis_conv = dis_conv
         self.dis_out = dis_out
-
+    def initial(self):
+        for parameter in  self.dis_conv.parameters():
+            if parameter.names == "conv":
+                nn.init.xavier_uniform_(parameter,gain=nn.init.calculate_gain("leaky_relu"))
     def forward(self,inputs):
         model_out = self.dis_conv(inputs)
 

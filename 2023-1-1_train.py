@@ -6,6 +6,7 @@ import os
 import matplotlib.pyplot as plt 
 import numpy as np 
 from src import network
+from src.network import Init_Conv
 from src.utils import detTs
 from src.loss import Adv_loss,Cnt_loss,Enc_loss
 
@@ -27,28 +28,28 @@ knsize = [5,3]
 feature_dims = [32,64,128]
 zdim = 32
 g_e = network.g_e(HEIGHT,WIDTH,CHANNEL,device,knsize,zdim,feature_dims)
-
+g_e.apply(Init_Conv)
 
 g_d = network.g_d(HEIGHT,WIDTH,CHANNEL,device,knsize,zdim,feature_dims)
-
+g_d.apply(Init_Conv)
 
 encoder = network.g_e(HEIGHT,WIDTH,CHANNEL,device,knsize,zdim,feature_dims)
-
+encoder.apply(Init_Conv)
 
 dis = network.dis(HEIGHT,WIDTH,CHANNEL,device,knsize,zdim,feature_dims)
+dis.apply(Init_Conv)
 
-
-g_e_optimizer = torch.optim.Adam(g_e.parameters(),lr= 1e-3)
-g_d_optimizer = torch.optim.Adam(g_d.parameters(),lr= 1e-3)
-d_optimizer = torch.optim.Adam(dis.parameters(),lr=1e-3)
+g_e_optimizer = torch.optim.Adam(g_e.parameters(),lr= 1e-3,weight_decay=1e-5)
+g_d_optimizer = torch.optim.Adam(g_d.parameters(),lr= 1e-3,weight_decay=1e-5)
+d_optimizer = torch.optim.Adam(dis.parameters(),lr=1e-3,weight_decay=1e-5)
 
 g_e.to(device);g_d.to(device);encoder.to(device);dis.to(device)
 
-d_loss = nn.BCELoss(reduction="sum")
+d_loss = nn.BCEWithLogitsLoss()
 
 encoder.train(False)
 
-num_step = 100
+num_step = 1000
 i = 0 
 for x in train_dl:
     i +=1
@@ -66,18 +67,22 @@ for x in train_dl:
     
 ################################################
     dis.train(True)
+    
     dis_ori = dis(ori)
     one_array = torch.ones(dis_ori.size()).float().to(device)
+    stddev = nn.Softplus()(torch.rand_like(dis_ori).float().to(device))*0.1
+    one_array +=  stddev*torch.rand_like(dis_ori)
     
     dis_gan = dis(gan)
+    stddev = nn.Softplus()(torch.rand_like(dis_ori).float().to(device))*0.1
     zero_array = torch.zeros(dis_gan.size()).float().to(device)
-    
+    zero_array += stddev*torch.rand_like(dis_gan).float().to(device)
     dis_all = torch.stack([dis_ori,dis_gan],dim=0)
     dis_tar = torch.stack([one_array,zero_array],dim=0)
 
     
     loss_d = d_loss(dis_all,dis_tar)
-    print(loss_d)
+    print(loss_d.item())
     loss_d.backward(retain_graph=True)
 
     d_optimizer.step()
@@ -90,23 +95,17 @@ for x in train_dl:
 
 
     with torch.no_grad():
-        dconv_ori = dis.dis_conv(ori).requires_grad_(False)
+        # dconv_ori = dis.dis_conv(ori).requires_grad_(False)
+        dconv_ori = dis.dis_conv(ori)
 
-        dconv_gan = dis.dis_conv(gan).requires_grad_(False)
-    
-    
-    
-    
+        # dconv_gan = dis.dis_conv(gan).requires_grad_(False)
+        dconv_gan = dis.dis_conv(gan)
     adv_loss = Adv_loss(dconv_ori,dconv_gan)
     # print(adv_loss.item())
-    
-
     cnt_loss = Cnt_loss(ori,gan)
     # print(cnt_loss.item())
     enc_loss = Enc_loss(enc_ori,enc_gan)
     # print(enc_loss.item())
-
-
     g_loss = 40*cnt_loss + adv_loss + enc_loss
     
     g_loss.backward(retain_graph=True)
