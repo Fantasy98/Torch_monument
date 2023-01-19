@@ -1,4 +1,7 @@
 class nn_config():
+    """
+    Configuration for parameter of neural network
+    """
     CHANNEl = 3
     HEIGHT = 360
     WIDTH = 640
@@ -7,6 +10,9 @@ class nn_config():
     zdim = 32
 
 class train_config():
+    """
+    Configuration for training
+    """
     random_seed = 1024
     if_random = True
     lr = 1e-3

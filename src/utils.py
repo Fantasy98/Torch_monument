@@ -11,8 +11,6 @@ def predict_snapshot(g_e,g_d,dis,test_path,save_dir,single:True):
     device = ("cuda" if torch.cuda.is_available() else "cpu")
     print(device)
 
-    
-    
     g_d.eval();g_e.eval();dis.eval()
     g_e.to(device);g_d.to(device);dis.to(device)
     if single:
@@ -72,3 +70,45 @@ def predict_snapshot(g_e,g_d,dis,test_path,save_dir,single:True):
         
         np.save(os.path.join(save_dir,"dis.npy"),dis_array)
         print(f"Dis data saved, with shape of {dis_array.shape}")
+
+
+def Encode_And_Mask(
+                    abnormal_imag_path,
+                    save_dir,
+                    g_e,g_d, device,
+                    imag_quality = 100
+                    ):
+    import torch 
+    import torchvision
+    from torchvision.transforms.functional import rgb_to_grayscale
+    from torchvision import io
+    import os
+    from tqdm import tqdm
+
+
+    abnormal_imag_path_list = [os.path.join(abnormal_imag_path,i) for i in os.listdir(abnormal_imag_path)]
+    abnormal_image_name_list = os.listdir(abnormal_imag_path)
+    if os.path.exists(save_dir) is False:
+        os.mkdir(save_dir)
+        print(f"Made :{save_dir}")
+    
+    for image_id in tqdm(range(len(abnormal_imag_path_list))):
+        abnormal_imag_snap = io.image.read_image(abnormal_imag_path_list[image_id])/255.0
+        abnormal_imag_snap_gpu= abnormal_imag_snap.unsqueeze(0).float().to(device)
+        with torch.no_grad():
+            abnormal_imag_snap_encoded_gpu =g_d(g_e(abnormal_imag_snap_gpu))
+
+        abnormal_imag_snap_encoded_uint8 = torch.tensor(255.0*abnormal_imag_snap_encoded_gpu.clone().detach().cpu().squeeze(),dtype=torch.uint8)
+        
+        abnormal_image_snap_mask = torch.abs(255.0*abnormal_imag_snap_encoded_gpu.clone().detach().cpu() - 255.0*abnormal_imag_snap_gpu.clone().detach().cpu())
+        abnormal_image_snap_mask_grey = rgb_to_grayscale(abnormal_image_snap_mask.clone().detach().cpu().squeeze())
+        abnormal_imag_snap_mask_uint8 = torch.tensor(abnormal_image_snap_mask_grey,dtype=torch.uint8)
+
+
+        io.write_jpeg(abnormal_imag_snap_mask_uint8,
+                os.path.join(save_dir,"mask_{}".format(abnormal_image_name_list[image_id])),
+                                                                                    quality=imag_quality)
+        io.write_jpeg(abnormal_imag_snap_encoded_uint8,
+                os.path.join(save_dir,"encoded_{}".format(abnormal_image_name_list[image_id]))
+                                                                                    ,quality=imag_quality)
+    print("All images have been encoded")      
