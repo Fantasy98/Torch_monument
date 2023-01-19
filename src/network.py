@@ -39,7 +39,15 @@ def net_dis(device):
 def Init_Conv(m):
     """
     A function for initializing conv and convtranspose layer 
+    
     The weight will be init by xavier_uniform and bias will be init by zeros
+
+    Args: 
+        m: nn.Module network to be initialized
+
+    Return:
+        Initialized model
+
     Example:
         model = FCN()
         model.apply(Init_Conv)

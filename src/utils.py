@@ -1,6 +1,18 @@
 import torch 
 
 def predict_snapshot(g_e,g_d,dis,test_path,save_dir,single:True):
+
+    """
+    A function for predict to generate encoded output in .npy format
+    Args:
+        g_e: generator encoder
+        g_d: generator decoder
+        test_path: the file path store the image
+        save_dir: where to save the .npy data
+        single: boolean: to shown a prediction of snapshot or give out whole data
+    Return:
+    
+    """
     import torch 
     from torch import nn 
     from torch.utils.data import DataLoader
@@ -78,6 +90,19 @@ def Encode_And_Mask(
                     g_e,g_d, device,
                     imag_quality = 100
                     ):
+    """
+    Function to get the Encoded output and absolute-difference between origin and output in grey-scale
+    
+    Args:
+        abnormal_imag_path: where store the image to be processed
+        save_dir: where to save output image
+                    The image is in .jpg format
+        g_e,g_d: encoder and decoder network
+        device: cuda to be used
+        image_quality: Could be 70~100
+    Return:
+        A folder with encoded images and mask images in jpg format
+    """
     import torch 
     import torchvision
     from torchvision.transforms.functional import rgb_to_grayscale

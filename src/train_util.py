@@ -4,6 +4,16 @@ from src.config import train_config
 from src.loss import Adv_loss,Cnt_loss,Enc_loss
 
 def get_optim(net):
+    """
+    Define the optimizer to given network
+    The parameters are in src.config.train_config
+
+    Args:
+        net: nn.Module The network to be trained
+
+    Return:
+        optimizer: torch.optim,
+    """
     optimimzer = Adam(net.parameters(),
                         lr=train_config.lr,
                         eps=train_config.eps,weight_decay=1e-5)
@@ -12,7 +22,26 @@ def get_optim(net):
 def fit(g_e,g_d,encoder,dis,
         g_e_optimizer,g_d_optimizer,d_optimizer
         ,train_dl,device):
-    
+    """
+    A function for 1 Epoch training loop
+
+    Args:
+        g_e, g_d, encoder, dis: g_encoder, g_decoder, Encoder and discrimator 
+        
+        g_e_optimizer,g_d_optimizer,d_optimizer: Correpsonding optimizer
+        
+        train_dl: Dataloder used for training
+
+        device: cuda or cpu used for training
+
+    Returns:
+        d_loss; averaged discrimator loss in this epoch
+        
+        g_loss; averaged generator loss in this epoch
+        
+    """
+
+
     from tqdm import tqdm
     from torch import nn
     from src.loss import Adv_loss,Cnt_loss,Enc_loss 
