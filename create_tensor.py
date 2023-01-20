@@ -6,13 +6,13 @@ import os
 import matplotlib.pyplot as plt 
 import numpy as np 
 from src import network
-from src.utils import detTs
+# from src.utils import detTs
 from tqdm import tqdm
 
 device = ("cuda" if torch.cuda.is_available else "cpu")
 print(device)
 
-file_path= "/home/yuning/DL/Monument/new_train"
+file_path= "/home/yuning/DL/Monument/pt1_data/pt1_train_img"
 file_type = [ os.path.join(file_path,image) for image in os.listdir(file_path)  ]
 print(f"There are {len(file_type)} types of argument in the path")
 print(f"A sample of file is {file_type[0]}")
@@ -42,6 +42,6 @@ for types,name  in zip(file_type,type_list):
     
 tensordata = TensorDataset(torch.stack(image_tensor,dim=0))
 print(f"shape of dataset is {tensordata.tensors[0].size()}")
-torch.save(tensordata,"/home/yuning/DL/Monument/Train_data/{}.pt".format("all"))
+torch.save(tensordata,"/home/yuning/DL/Monument/pt1_data/pt1_tensor/{}.pt".format("all"))
 print(f"{name}.pt saved !")
 image_tensor.clear()
