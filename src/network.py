@@ -200,10 +200,12 @@ class g_d(nn.Module):
         self.d_mlp = d_mlp
 
     def forward(self,inputs):
+        import torch.nn.functional as F
         dense_out = self.d_mlp(inputs)
         dense_reshape = dense_out.view(dense_out.size(0),self.feature_dims[-1],self.reheight,self.rewidth)
         conv_out = self.d_conv(dense_reshape)
-        return conv_out
+        # 23-1-20 : tanh()
+        return F.tanh(conv_out)
 
 
 class dis(nn.Module):
